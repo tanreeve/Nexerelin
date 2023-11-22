@@ -315,7 +315,7 @@ public class ExerelinNewGameSetup implements SectorGeneratorPlugin
 				// no need to do it in random sector, since ExerelinCoreSystemGenerator has its own clearer
 				HyperspaceTerrainPlugin plugin = (HyperspaceTerrainPlugin) Misc.getHyperspaceTerrain().getPlugin();
 				NebulaEditor editor = new NebulaEditor(plugin);
-				float minRadius = plugin.getTileSize() * 2f;
+				float minRadius = plugin.getTileSize() * 999f; // Clear storm cloud in corvus mode
 				for (StarSystemAPI curr : sector.getStarSystems()) {
 					float radius = curr.getMaxRadiusInHyperspace() * 0.5f;
 					editor.clearArc(curr.getLocation().x, curr.getLocation().y, 0, radius + minRadius * 0.5f, 0, 360f);
