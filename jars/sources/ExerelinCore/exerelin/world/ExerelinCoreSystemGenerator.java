@@ -90,7 +90,7 @@ public class ExerelinCoreSystemGenerator extends StarSystemGenerator {
 		HyperspaceTerrainPlugin plugin = (HyperspaceTerrainPlugin) Misc.getHyperspaceTerrain().getPlugin();
 		NebulaEditor editor = new NebulaEditor(plugin);
 		
-		float minRadius = plugin.getTileSize() * 2f;
+		float minRadius = plugin.getTileSize() * 999f; // remove storm clouds from mixed core world mode
 		for (StarSystemAPI curr : systems) {
 			float radius = curr.getMaxRadiusInHyperspace();
 			editor.clearArc(curr.getLocation().x, curr.getLocation().y, 0, radius + minRadius * 0.5f, 0, 360f);
