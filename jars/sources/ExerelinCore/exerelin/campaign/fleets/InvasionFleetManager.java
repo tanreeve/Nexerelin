@@ -30,6 +30,7 @@ import exerelin.campaign.econ.FleetPoolManager;
 import exerelin.campaign.econ.GroundPoolManager;
 import exerelin.campaign.econ.ResourcePoolManager;
 import exerelin.campaign.econ.ResourcePoolManager.RequisitionParams;
+import exerelin.campaign.intel.fleets.BlockadeWrapperIntel;
 import exerelin.campaign.intel.fleets.OffensiveFleetIntel;
 import exerelin.campaign.intel.groundbattle.GroundBattleIntel;
 import exerelin.campaign.intel.invasion.InvasionIntel;
@@ -88,6 +89,7 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 	public static final float MAX_INVASION_SIZE = 2000;
 	public static final float MAX_INVASION_SIZE_ECONOMY_MULT = 6f;
 	public static final float SAT_BOMB_CHANCE = 0.4f;
+	public static final float BLOCKADE_CHANCE = 0.3f;
 	public static final float RAID_COST_MULT = 0.65f;
 	public static final boolean USE_MARKET_FLEET_SIZE_MULT = false;
 	public static final float GENERAL_SIZE_MULT = USE_MARKET_FLEET_SIZE_MULT ? 0.65f : 0.9f;
@@ -569,13 +571,24 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 		return false;
 	}
 
-	public boolean isValidInvasionOrRaidTarget(FactionAPI faction, FactionAPI targetFaction, MarketAPI market, EventType type, boolean isRemnantRaid)
+	/**
+	 * Check whether the specified market is a valid invasion/raid/sat bomb target by this faction.
+	 * @param faction
+	 * @param targetFaction Faction to target. If non-null, must match {@code market}'s faction.
+	 * @param market
+	 * @param type
+	 * @param isRemnantRaid
+	 * @return
+	 */
+	public boolean isValidInvasionOrRaidTarget(FactionAPI faction, @Nullable FactionAPI targetFaction, MarketAPI market, EventType type, boolean isRemnantRaid)
 	{
 		String factionId = faction.getId();
 		FactionAPI marketFaction = market.getFaction();
 		String marketFactionId = marketFaction.getId();
 
+		// Templars are only a valid target if we're specifically targeting Templars
 		if (EXCEPTION_LIST.contains(marketFactionId) && targetFaction != marketFaction) return false;
+
 		if (targetFaction != null && targetFaction != marketFaction)
 			return false;
 
@@ -593,12 +606,11 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 		if (type == EventType.SAT_BOMB && faction.getId().equals(NexUtilsMarket.getOriginalOwner(market)))
 			return false;
 
-		if (isRemnantRaid) {
-			// non-hard mode mercy for new player colonies
-			// TODO: replace with an expiring memory key when we get colonization listener?
-			if (!SectorManager.getManager().isHardMode() && marketFaction.isPlayerFaction() && market.getSize() < 4)
-				return false;
-		}
+		// non-hard mode mercy for new player colonies
+		// TODO: replace with an expiring memory key when we get colonization listener?
+		if (!SectorManager.getManager().isHardMode() && marketFaction.isPlayerFaction()
+				&& NexUtilsMarket.isWithOriginalOwner(market) && market.getSize() < 4)
+			return false;
 
 		/*
 		float defenderStrength = InvasionRound.GetDefenderStrength(market);
@@ -780,15 +792,20 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 		
 		// sat bomb
 		// note: don't sat bomb own originally-owned markets
-		if (NexConfig.allowNPCSatBomb && type == EventType.RAID && Math.random() < SAT_BOMB_CHANCE 
+		if (NexConfig.allowNPCSatBomb && type == EventType.INVASION && Math.random() < SAT_BOMB_CHANCE
 				&& canSatBomb(faction, targetMarket))
 		{
 			type = EventType.SAT_BOMB;
 		}
+
+		if (type == EventType.RAID && Math.random() < BLOCKADE_CHANCE)
+		{
+			type = EventType.BLOCKADE;
+		}
 		
-		// always invade rather than raid derelicts
+		// always invade rather than raid etc. against derelicts
 		if (targetMarket.getFactionId().equals("nex_derelict") 
-				&& (type == EventType.RAID || type == EventType.SAT_BOMB))
+				&& (type == EventType.RAID || type == EventType.SAT_BOMB) || type == EventType.BLOCKADE)
 			type = EventType.INVASION;
 		
 		return generateInvasionOrRaidFleet(originMarket, targetMarket, type, sizeMult, rp);
@@ -804,7 +821,7 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 		float organizeTime = getOrganizeTime(fp);
 		fp *= InvasionFleetManager.getInvasionSizeMult(factionId);
 		fp *= sizeMult;
-		if (type == EventType.RAID)
+		if (type == EventType.RAID || type == EventType.BLOCKADE)
 			fp *= RAID_SIZE_MULT;
 		else if (type == EventType.RESPAWN)
 			fp *= RESPAWN_SIZE_MULT;
@@ -856,6 +873,12 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 			{
 				log.info("Spawning saturation bombardment fleet for " + faction.getDisplayName() + "; source " + origin.getName() + "; target " + target.getName());
 				intel = new SatBombIntel(faction, origin, target, fp, organizeTime);
+				break;
+			}
+			case BLOCKADE:
+			{
+				log.info("Spawning blockade fleet for " + faction.getDisplayName() + "; source " + origin.getName() + "; target " + target.getName());
+				intel = new BlockadeWrapperIntel(faction, origin, target, fp, organizeTime);
 				break;
 			}
 		}
@@ -1060,6 +1083,7 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 				//canSpawn = false;
 				canSpawn &= currCounter > pointsRequired * 2f;
 			}
+			if (!NexConfig.enableHostileFleetEvents) canSpawn = false;
 			
 			if (!canSpawn)
 			{
@@ -1088,6 +1112,8 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 	
 	protected void processTemplarInvasionPoints()
 	{
+		if (!NexConfig.enableHostileFleetEvents) return;
+
 		List<String> liveFactionIds = SectorManager.getLiveFactionIdsCopy();
 		if (!liveFactionIds.contains("templars")) return;
 		
@@ -1152,11 +1178,15 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 			return null;
 		
 		OffensiveFleetIntel intel = generateInvasionOrRaidFleet(source, target, EventType.BASE_STRIKE, 1, new RequisitionParams());
+		if (intel == null) return null;
 
 		// deduct rage points if the strike fleet was spawned by our own {@code processPirateRage()} method rather than strategic AI
 		if (StrategicAI.getAI(faction.getId()) == null) {
 			NexUtils.modifyMapEntry(pirateRage, faction.getId(), -100);
 		}
+
+		NexUtils.modifyMapEntry(spawnCounter, faction.getId(), -getInvasionPointCost(intel) * 0.75f);
+
 		return intel;
 	}
 	
@@ -1166,6 +1196,8 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 	 * When a faction reaches 100 or more points, a strike is launched against the base that pushed it over the limit.
 	 */
 	protected void processPirateRage() {
+		if (!NexConfig.enableHostileFleetEvents) return;
+
 		//boolean pirateInvasions = ExerelinConfig.allowPirateInvasions;
 		float rageIncrement = Global.getSettings().getFloat("nex_pirateRageIncrement");
 		
@@ -1214,7 +1246,14 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 			}
 		}
 	}
-	
+
+
+	/**
+	 * Literally just a wrapper for getInvasionPointCost.
+	 * @param basePointCost
+	 * @param intel
+	 * @return
+	 */
 	@Deprecated
 	public static float getInvasionPointReduction(float basePointCost, OffensiveFleetIntel intel) {
 		return getInvasionPointCost(basePointCost, intel);
@@ -1232,7 +1271,7 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 	public static float getInvasionPointCost(float basePointCost, float fp, EventType type)
 	{
 		float amount = basePointCost * Math.max(fp/BASE_INVASION_SIZE, 0.8f);
-		if (type == EventType.RAID || type == EventType.DEFENSE)
+		if (type == EventType.RAID || type == EventType.DEFENSE || type == EventType.BLOCKADE)
 			amount *= RAID_COST_MULT;
 
 		log.info("Preparing to deduct " + amount + " invasion points for event " + type);
@@ -1527,7 +1566,7 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 		return false;
 	}
 	
-	public enum EventType { INVASION, RAID, RESPAWN, BASE_STRIKE, SAT_BOMB, DEFENSE, OTHER };
+	public enum EventType { INVASION, RAID, RESPAWN, BASE_STRIKE, SAT_BOMB, BLOCKADE, DEFENSE, OTHER };
 	
 	// No longer used
 	// only kept around because some classes I'm keeping for reference still reference it

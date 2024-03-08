@@ -326,6 +326,8 @@ public class RevengeanceManager extends BaseCampaignEventListener implements Col
 	 */
 	protected boolean generateRevengeInvasionFleet(String triggeringFactionId)
 	{
+		if (!NexConfig.enableHostileFleetEvents) return false;
+
 		log.info("Trying to generate revenge invasion fleet");
 		
 		SectorAPI sector = Global.getSector();
@@ -482,6 +484,7 @@ public class RevengeanceManager extends BaseCampaignEventListener implements Col
 					continue;
 				}
 			}
+			if (market.isHidden()) continue;	// otherwise a vengeance fleet originating from a pirate base may lead to breaking pirate king deal
 			if (!NexUtilsMarket.hasWorkingSpaceport(market)) continue;
 			
 			float weight = market.getSize() * (float) Math.sqrt(NexUtilsMath.lerp(0.25f, 1f, market.getShipQualityFactor()));

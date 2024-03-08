@@ -2,6 +2,7 @@ package exerelin.campaign.intel.groundbattle;
 
 import com.fs.starfarer.api.Global;
 import exerelin.ExerelinConstants;
+import exerelin.campaign.intel.groundbattle.plugins.GroundUnitPlugin;
 import exerelin.utilities.NexUtils;
 import lombok.Getter;
 import lombok.extern.log4j.Log4j;
@@ -141,10 +142,13 @@ public class GBDataManager {
 				GroundUnitDef def = new GroundUnitDef(id, name, type);
 				def.playerCanCreate = jsonUnitEntry.optBoolean("playerCanCreate", false);
 				def.strength = (float)jsonUnitEntry.optDouble("strength", 1);
+				def.pluginClass = jsonUnitEntry.optString("pluginClass", GroundUnitPlugin.class.getName());
+				def.playerMemKeyToShow = jsonUnitEntry.optString("playerMemKeyToShow", null);
 				def.unitSizeMult = (float)jsonUnitEntry.optDouble("unitSizeMult", 1);
 				def.dropCostMult = (float)jsonUnitEntry.optDouble("dropCostMult", 1);
 				def.offensiveStrMult = (float)jsonUnitEntry.optDouble("offensiveStrMult", 1);
 				def.damageTakenMult = (float)jsonUnitEntry.optDouble("damageTakenMult", 1);
+				def.moraleMult = (float)jsonUnitEntry.optDouble("moraleMult", 1);
 				def.crampedStrMult = (float)jsonUnitEntry.optDouble("crampedStrMult", 1);
 				def.sprite = jsonUnitEntry.optString("sprite", null);
 				def.sortOrder = (float)jsonUnitEntry.optDouble("sortOrder", 10);

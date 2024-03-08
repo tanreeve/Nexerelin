@@ -51,9 +51,9 @@ public class ConquestMissionContact extends HubMissionWithSearch implements Inva
 	protected boolean create(MarketAPI createdAt, boolean barEvent) {
 		if (Global.getSector().getPlayerStats().getLevel() < MIN_PLAYER_LEVEL)
 			return false;
-		
-		if (!NexConfig.enableInvasions)
-			return false;
+
+		if (!NexConfig.enableHostileFleetEvents) return false;
+		if (!NexConfig.enableInvasions)	return false;
 		
 		PersonAPI person = getPerson();
 		if (person == null) return false;
@@ -85,6 +85,9 @@ public class ConquestMissionContact extends HubMissionWithSearch implements Inva
 			return false;
 		}
 		if (market.isInvalidMissionTarget()) return false;
+
+		float currReward = ConquestMissionIntel.calculateReward(market, true);
+		if (currReward <= 0) return false;
 		
 		if (!setMarketMissionRef(market, "$nex_conquest_ref")) {
 			return false;

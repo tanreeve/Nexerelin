@@ -63,7 +63,20 @@ public abstract class OffensiveFleetAction extends BaseStrategicAction {
     }
 
     public MarketAPI pickTargetMarket() {
-        if (concern.getMarket() != null) return concern.getMarket();
+        MarketAPI market = concern.getMarket();
+
+        // check if the market specified by concern is hostile (it may not be, e.g. retaliation concern sometimes targets markets that have already been taken)
+        boolean blockedByNonHostile = false;
+        if (market != null) {
+            if (ai.getFaction() == market.getFaction()) blockedByNonHostile = false;
+            else if (ai.getFaction().getRelationshipLevel(market.getFaction()).ordinal() > getMaxRelToTarget(market.getFaction()).ordinal())
+                blockedByNonHostile = true;
+        }
+
+        if (market != null && !blockedByNonHostile && !InvasionFleetManager.getManager().isValidInvasionOrRaidTarget(
+                ai.getFaction(), null, market, this.getEventType(), false)) {
+            return market;
+        }
         return InvasionFleetManager.getManager().getTargetMarketForFleet(ai.getFaction(), faction, null,
                 getPotentialTargets(), getEventType());
     }
@@ -116,6 +129,8 @@ public abstract class OffensiveFleetAction extends BaseStrategicAction {
 
     @Override
     public boolean canUse(StrategicConcern concern) {
+        if (!NexConfig.enableHostileFleetEvents) return false;
+
         if (ai.getFaction().isPlayerFaction() && !NexConfig.followersInvasions)
             return false;
 
@@ -124,6 +139,12 @@ public abstract class OffensiveFleetAction extends BaseStrategicAction {
             if (concern.getMarkets().isEmpty()) {
                 return false;
             }
+        }
+
+        if (concern.getMarket() != null) {
+            MarketAPI market = concern.getMarket();
+            if (!InvasionFleetManager.getManager().isValidInvasionOrRaidTarget(
+                    ai.getFaction(), null, market, this.getEventType(), false)) return false;
         }
 
         return true;

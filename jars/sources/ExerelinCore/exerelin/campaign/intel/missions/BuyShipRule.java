@@ -156,13 +156,14 @@ public abstract class BuyShipRule {
 			try {
 				MarketAPI market = Global.getSector().getCampaignUI().getCurrentInteractionDialog().getInteractionTarget().getMarket();
 				for (SubmarketAPI sub : market.getSubmarketsCopy()) {
+					//if (sub.getPlugin() == null || sub.getCargo() == null) continue;
 					if (sub.getPlugin().isFreeTransfer()) continue;
 					for (FleetMemberAPI inSub : sub.getCargo().getMothballedShips().getMembersListCopy()) {
 						ships.add(inSub);
 					}
 				}
 			} catch (Exception ex) {
-				log.error(ex);
+				log.error("Failed to get ships at market", ex);
 			}
 			return ships;
 		}
@@ -362,7 +363,8 @@ public abstract class BuyShipRule {
 
 		@Override
 		boolean isShipAllowed(FleetMemberAPI member) {
-			return member.getVariant().getSMods().size() > 0;
+			return member.getVariant().getSMods().size() > 0
+					|| member.getVariant().getSModdedBuiltIns().size() > 0;
 		}
 
 		@Override

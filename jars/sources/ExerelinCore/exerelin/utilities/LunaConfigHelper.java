@@ -37,6 +37,7 @@ public class LunaConfigHelper implements LunaSettingsListener {
         addSetting("agentEventFilterLevel", "int", NexConfig.agentEventFilterLevel, 0, 2);
 
         addHeader("invasions", tabFleets);
+        addSetting("enableHostileFleetEvents", "boolean", tabFleets, NexConfig.enableHostileFleetEvents);
         addSetting("enableInvasions", "boolean", tabFleets, NexConfig.enableInvasions);
         addSetting("legacyInvasions", "boolean", tabFleets, NexConfig.legacyInvasions);
         addSetting("invasionsOnlyAfterPlayerColony", "boolean", tabFleets, NexConfig.invasionsOnlyAfterPlayerColony);
@@ -97,6 +98,7 @@ public class LunaConfigHelper implements LunaSettingsListener {
         addSetting("vengeanceFleetSizeMult", "float", tabFleets, NexConfig.vengeanceFleetSizeMult, 0.2, 5);
 
         addHeader("otherFleets", tabFleets);
+        addSetting("enableColonyExpeditions", "boolean", tabFleets, NexConfig.enableColonyExpeditions);
         addSetting("colonyExpeditionInterval", "int", tabFleets, NexConfig.colonyExpeditionInterval, 15, 10000);
         addSetting("colonyExpeditionsOnlyAfterPlayerColony", "boolean", tabFleets, NexConfig.colonyExpeditionsOnlyAfterPlayerColony);
         addSetting("specialForcesPointMult", "float", tabFleets, NexConfig.specialForcesPointMult, 0, 10);
@@ -104,6 +106,7 @@ public class LunaConfigHelper implements LunaSettingsListener {
 
         addHeader("misc", null);
         addSetting("enableStrategicAI", "boolean", NexConfig.enableStrategicAI);
+        addSetting("showStrategicAI", "boolean", NexConfig.showStrategicAI);
         addSetting("enableVictory", "boolean", NexConfig.enableVictory);
         addSetting("hardModeColonyGrowthMult", "float", NexConfig.hardModeColonyGrowthMult, 0.5f, 1f);
         addSetting("hardModeColonyIncomeMult", "float", NexConfig.hardModeColonyIncomeMult, 0.5f, 1f);
@@ -150,6 +153,7 @@ public class LunaConfigHelper implements LunaSettingsListener {
 
         NexConfig.crewLootMult = (float)loadSetting("crewLootMult", "float");
 
+        NexConfig.enableHostileFleetEvents = (boolean)loadSetting("enableHostileFleetEvents", "boolean");
         NexConfig.enableInvasions = (boolean)loadSetting("enableInvasions", "boolean");
         NexConfig.legacyInvasions = (boolean)loadSetting("legacyInvasions", "boolean");
         NexConfig.invasionsOnlyAfterPlayerColony = (boolean)loadSetting("invasionsOnlyAfterPlayerColony", "boolean");
@@ -200,12 +204,14 @@ public class LunaConfigHelper implements LunaSettingsListener {
         NexConfig.useNewVengeanceEncounters = (boolean)loadSetting("useNewVengeanceEncounters", "boolean");
         NexConfig.vengeanceFleetSizeMult = (float)loadSetting("vengeanceFleetSizeMult", "float");
 
+        NexConfig.enableColonyExpeditions = (boolean)loadSetting("enableColonyExpeditions", "boolean");
         NexConfig.colonyExpeditionInterval = (int)loadSetting("colonyExpeditionInterval", "int");
         NexConfig.colonyExpeditionsOnlyAfterPlayerColony = (boolean)loadSetting("colonyExpeditionsOnlyAfterPlayerColony", "boolean");
         NexConfig.specialForcesPointMult = (float)loadSetting("specialForcesPointMult", "float");
         NexConfig.specialForcesSizeMult = (float)loadSetting("specialForcesSizeMult", "float");
 
         NexConfig.enableStrategicAI = (boolean)loadSetting("enableStrategicAI", "boolean");
+        NexConfig.showStrategicAI = (boolean)loadSetting("showStrategicAI", "boolean");
         NexConfig.enableVictory = (boolean)loadSetting("enableVictory", "boolean");
         NexConfig.hardModeColonyGrowthMult = (float)loadSetting("hardModeColonyGrowthMult", "float");
         NexConfig.hardModeColonyIncomeMult = (float)loadSetting("hardModeColonyIncomeMult", "float");

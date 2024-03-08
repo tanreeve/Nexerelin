@@ -89,7 +89,7 @@ open class RemnantSalvation : HubMissionWithBarEvent(), FleetEventListener {
     companion object {
         @JvmField var SALVATION_ENABLED = true;
         @JvmField var DEBUG_MODE = false;
-        @JvmField val STAT_MOD_ID = "nex_remSalvation_mod";
+        const val STAT_MOD_ID = "nex_remSalvation_mod";
 
         @JvmField val log : Logger = Global.getLogger(RemnantSalvation::class.java)
         // runcode exerelin.campaign.intel.missions.remnant.RemnantSalvation.Companion.devAddTriggers()
@@ -1165,13 +1165,18 @@ open class RemnantSalvation : HubMissionWithBarEvent(), FleetEventListener {
             str = RemnantQuestUtils.getString("salvation_investigateLeadsDesc");
             str = StringHelper.substituteToken(str, "\$agentName", Global.getSector().importantPeople.getPerson(People.SIYAVONG).name.last)
             info.addPara(str, opad)
+            var arroyo : PersonAPI? = Global.getSector().importantPeople.getPerson(People.ARROYO);
 
             bullet(info)
             val tt = Global.getSector().getFaction(Factions.TRITACHYON)
             if (!defeatedFleet1)
                 info.addPara(RemnantQuestUtils.getString("salvation_investigateLeadsDesc1"), 0f, hl, remnantSystem!!.nameWithLowercaseTypeShort)
-            if (!talkedToArroyo)
-                info.addPara(RemnantQuestUtils.getString("salvation_investigateLeadsDesc2"), 0f, tt.baseUIColor, tt.displayName)
+            if (!talkedToArroyo) {
+                if (metArroyoBefore() || arroyo?.memoryWithoutUpdate?.getBoolean("\$nex_remSalvation_arroyo_imp") == true) info.addPara(RemnantQuestUtils.getString("salvation_investigateLeadsDesc2Known"), 0f, tt.baseUIColor,
+                    tt.displayName, arroyo?.nameString, arroyoMarket?.name)
+                else info.addPara(RemnantQuestUtils.getString("salvation_investigateLeadsDesc2"), 0f, tt.baseUIColor, tt.displayName)
+            }
+
             unindent(info)
         } else if (currentStage == Stage.RETURN_TO_MIDNIGHT) {
             info.addPara(RemnantQuestUtils.getString("salvation_returnDesc"), opad, person.faction.baseUIColor, person.name.first)

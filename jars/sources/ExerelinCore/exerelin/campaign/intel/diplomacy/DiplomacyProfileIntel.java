@@ -36,6 +36,7 @@ import java.util.*;
 public class DiplomacyProfileIntel extends BaseIntelPlugin {
 	
 	public static final float WEARINESS_MAX_FOR_COLOR = 10000;
+	public static final float BADBOY_MAX_FOR_COLOR = 100;
 	public static final float MARGIN = 40;
 	public static final float ALIGNMENT_BUTTON_WIDTH = 40;
 	public static final float ALIGNMENT_BUTTON_HEIGHT = 20;
@@ -169,15 +170,19 @@ public class DiplomacyProfileIntel extends BaseIntelPlugin {
 		if (FleetPoolManager.USE_POOL) {
 			float pool = FleetPoolManager.getManager().getCurrentPool(factionId);
 			float poolMax = FleetPoolManager.getManager().getMaxPool(factionId);
-			tooltip.addPara(StrategicAI.getString("intelPara_fleetPool"), nextPad, hl, (int)pool + "", (int)poolMax + "");
+			float poolIncr = FleetPoolManager.getManager().getPointsLastTick(faction);
+			String poolIncrStr = String.format("%.1f", poolIncr);
+			tooltip.addPara(StrategicAI.getString("intelPara_fleetPool"), nextPad, hl, (int)pool + "", (int)poolMax + "", poolIncrStr);
 			nextPad = 3;
 		}
 		{
 			float points = InvasionFleetManager.getManager().getSpawnCounter(factionId);
 			float pointsMax = InvasionFleetManager.getMaxInvasionPoints(faction);
+			float pointsIncr = InvasionFleetManager.getPointsLastTick(faction);
 			String pointsStr = Misc.getWithDGS(points);
 			String pointsMaxStr = Misc.getWithDGS(pointsMax);
-			tooltip.addPara(StrategicAI.getString("intelPara_invasionPoints"), nextPad, hl, pointsStr, pointsMaxStr);
+			String pointsIncrStr = "" + Math.round(pointsIncr);  //String.format("%.1f", pointsIncr);
+			tooltip.addPara(StrategicAI.getString("intelPara_invasionPoints"), nextPad, hl, pointsStr, pointsMaxStr, pointsIncrStr);
 		}
 	}
 	
@@ -230,7 +235,7 @@ public class DiplomacyProfileIntel extends BaseIntelPlugin {
 		}
 	}
 	
-	protected void addWarWearinessInfo(TooltipMakerAPI tooltip, float pad) {
+	protected void addWarWearinessAndBadboy(TooltipMakerAPI tooltip, float pad) {
 		float weariness = DiplomacyManager.getWarWeariness(faction.getId(), true);
 		String wearinessStr = String.format("%.0f", weariness);
 		
@@ -253,6 +258,17 @@ public class DiplomacyProfileIntel extends BaseIntelPlugin {
 			str = StringHelper.substituteToken(str, "$theFaction", faction.getDisplayNameWithArticle(), true);
 			tooltip.addPara(str, 3);
 		}
+
+		float badboy = DiplomacyManager.getBadboy(faction);
+		String badboyStr = String.format("%.0f", weariness);
+		str = getString("badboy", true) + ": " + badboyStr;
+		colorProgress = Math.min(badboy, BADBOY_MAX_FOR_COLOR)/BADBOY_MAX_FOR_COLOR;
+		if (colorProgress > 1) colorProgress = 1;
+		if (colorProgress < 0) colorProgress = 0;
+
+		Color badboyColor = Misc.interpolateColor(Color.WHITE, Misc.getNegativeHighlightColor(), colorProgress);
+		tooltip.addPara(str, pad, badboyColor, badboyStr);
+
 		unindent(tooltip);
 	}
 	
@@ -556,7 +572,7 @@ public class DiplomacyProfileIntel extends BaseIntelPlugin {
 		// important notes for player
 		addDispositionInfo(outer, opad);
 		addFleetPoolAndInvasionPoints(outer, opad);
-		addWarWearinessInfo(outer, opad);
+		addWarWearinessAndBadboy(outer, opad);
 		
 		// disposition table
 		// player: add alignment buttons

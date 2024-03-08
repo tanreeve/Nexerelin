@@ -10,6 +10,7 @@ import com.fs.starfarer.api.impl.campaign.intel.BaseIntelPlugin;
 import com.fs.starfarer.api.ui.*;
 import com.fs.starfarer.api.util.IntervalUtil;
 import com.fs.starfarer.api.util.Misc;
+import exerelin.campaign.PlayerFactionStore;
 import exerelin.campaign.SectorManager;
 import exerelin.campaign.ai.action.StrategicAction;
 import exerelin.campaign.ai.action.StrategicActionDelegate;
@@ -207,6 +208,12 @@ public class StrategicAI extends BaseIntelPlugin {
 
 	}
 
+	public void forceMeeting() {
+		interval.forceIntervalElapsed();
+		advanceImpl(0);
+		interval.advance(0.001f);
+	}
+
 	/*
 	============================================================================
 	// start of GUI stuff
@@ -295,9 +302,7 @@ public class StrategicAI extends BaseIntelPlugin {
 	@Override
 	public void buttonPressConfirmed(Object buttonId, IntelUIAPI ui) {
 		if (buttonId == BUTTON_MEETING) {
-			interval.forceIntervalElapsed();
-			advanceImpl(0);
-			interval.advance(0.001f);
+			forceMeeting();
 			ui.updateUIForItem(this);
 		}
 		else if (buttonId instanceof StrategicAction) {
@@ -358,7 +363,7 @@ public class StrategicAI extends BaseIntelPlugin {
 	
 	@Override
 	protected String getName() {
-		return getFactionForUIColors().getDisplayName() + " Strategic AI";
+		return getFactionForUIColors().getDisplayName() + " " + getString("intelTitle");
 	}
 
 	@Override
@@ -368,7 +373,7 @@ public class StrategicAI extends BaseIntelPlugin {
 
 	@Override
 	public boolean isHidden() {
-		return false;
+		return !NexConfig.showStrategicAI && !faction.isPlayerFaction() && faction != PlayerFactionStore.getPlayerFaction();
 	}
 
 	public static String getString(String id) {

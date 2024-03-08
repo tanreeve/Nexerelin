@@ -9,7 +9,6 @@ import com.fs.starfarer.api.campaign.comm.IntelInfoPlugin;
 import com.fs.starfarer.api.campaign.econ.*;
 import com.fs.starfarer.api.campaign.econ.MonthlyReport.FDNode;
 import com.fs.starfarer.api.campaign.listeners.ColonyPlayerHostileActListener;
-import com.fs.starfarer.api.campaign.listeners.EconomyTickListener;
 import com.fs.starfarer.api.campaign.listeners.PlayerColonizationListener;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.characters.AdminData;
@@ -70,7 +69,7 @@ import static com.fs.starfarer.api.util.Misc.getImmigrationPlugin;
  * admin bonuses from empire size, and relief fleets.
  */
 public class ColonyManager extends BaseCampaignEventListener implements EveryFrameScript,
-		EconomyTickListener, InvasionListener, PlayerColonizationListener, MarketImmigrationModifier,
+		InvasionListener, PlayerColonizationListener, MarketImmigrationModifier,
 		ColonyPlayerHostileActListener, ColonyNPCHostileActListener
 {
 	public static Logger log = Global.getLogger(ColonyManager.class);
@@ -1285,6 +1284,7 @@ public class ColonyManager extends BaseCampaignEventListener implements EveryFra
 				colonyExpeditionProgress = MathUtils.getRandomNumberInRange(-interval * 0.1f, interval * 0.1f);
 				colonyExpeditionProgress -= numColonies * Global.getSettings().getFloat("nex_expeditionDelayPerExistingColony");
 				intel.getFaction().getMemoryWithoutUpdate().set(MEMORY_KEY_FACTION_SURVEY_BONUS, 0);
+				InvasionFleetManager.getManager().modifySpawnCounter(intel.getFaction().getId(), InvasionFleetManager.getInvasionPointCost(intel) * 2);
 			}
 			else {	// failed to spawn, try again in 10 days
 				colonyExpeditionProgress -= Math.min(NexConfig.colonyExpeditionInterval/2, 10);
@@ -1502,6 +1502,18 @@ public class ColonyManager extends BaseCampaignEventListener implements EveryFra
 		}
 	}
 
+	public void reportSatBomb(MarketAPI market, MarketCMD.TempData actionData) {
+		checkIndustriesAfterSatBomb(market);
+
+		// increment attacker badboy
+		if (actionData instanceof Nex_MarketCMD.NexTempData) {
+			Nex_MarketCMD.NexTempData nad = (Nex_MarketCMD.NexTempData)actionData;
+			if (!nad.satBombLimitedHatred && nad.attackerFaction != null) {
+				DiplomacyManager.modifyBadboy(nad.attackerFaction, nad.sizeBeforeBombardment * nad.sizeBeforeBombardment);
+			}
+		}
+	}
+
 	@Override
 	public void reportEconomyTick(int iterIndex) {
 		if (TutorialMissionIntel.isTutorialInProgress()) 
@@ -1509,8 +1521,11 @@ public class ColonyManager extends BaseCampaignEventListener implements EveryFra
 		// workaround: reportEconomyTick is called twice,
 		// since we've added colony manager as a script in sector, and also as a listener
 		// so don't do anything the second time
-		if (currIter == iterIndex)
+		// Dunno if this is still needed since we're no longer implementing EconomyTickListener, but keep it for now
+		if (currIter == iterIndex) {
+			log.error("reportEconomyTick called twice by ColonyManager");
 			return;
+		}
 		
 		updateMarkets();
 		processNPCConstruction();
@@ -1912,7 +1927,7 @@ public class ColonyManager extends BaseCampaignEventListener implements EveryFra
 	@Override
 	public void reportSaturationBombardmentFinished(InteractionDialogAPI dialog, 
 			MarketAPI market, MarketCMD.TempData actionData) {
-		checkIndustriesAfterSatBomb(market);
+		reportSatBomb(market, actionData);
 	}
 	
 	@Override
@@ -1927,7 +1942,7 @@ public class ColonyManager extends BaseCampaignEventListener implements EveryFra
 	@Override
 	public void reportNPCSaturationBombardment(MarketAPI market, MarketCMD.TempData actionData) 
 	{
-		checkIndustriesAfterSatBomb(market);
+		reportSatBomb(market, actionData);
 	}
 	
 	public static class QueuedIndustry {
@@ -1943,7 +1958,9 @@ public class ColonyManager extends BaseCampaignEventListener implements EveryFra
 		public static enum QueueType { NEW, UPGRADE }
 	}
 	
-	public static final TooltipMakerAPI.TooltipCreator AUTONOMOUS_INCOME_NODE_TOOLTIP = new TooltipMakerAPI.TooltipCreator() {
+	public static final TooltipMakerAPI.TooltipCreator AUTONOMOUS_INCOME_NODE_TOOLTIP = new AINTT();
+
+	public static class AINTT implements TooltipMakerAPI.TooltipCreator {
 		public boolean isTooltipExpandable(Object tooltipParam) {
 			return false;
 		}
@@ -1951,8 +1968,8 @@ public class ColonyManager extends BaseCampaignEventListener implements EveryFra
 			return 450;
 		}
 		public void createTooltip(TooltipMakerAPI tooltip, boolean expanded, Object tooltipParam) {
-			tooltip.addPara(getString("reportAutonomousTaxTooltip"), 0, Misc.getHighlightColor(), 
+			tooltip.addPara(getString("reportAutonomousTaxTooltip"), 0, Misc.getHighlightColor(),
 					String.format("%.0f", Global.getSettings().getFloat("nex_autonomousIncomeMult") * 100) + "%");
 		}
-	};
+	}
 }

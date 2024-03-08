@@ -301,16 +301,16 @@ public class LowerRelations extends CovertActionIntel {
 			other = PlayerFactionStore.getPlayerFactionId();
 		if (!DiplomacyManager.haveRandomRelationships(targetFaction.getId(), other))
 		{
-			float max = NexFactionConfig.getMinRelationship(targetFaction.getId(),	other);
-			if (max < 1) {
+			float min = NexFactionConfig.getMinRelationship(targetFaction.getId(),	other);
+			if (min > -1) {
 				String str = StringHelper.getString("exerelin_factions", "relationshipLimit");
 				str = StringHelper.substituteToken(str, "$faction1",
 						NexUtilsFaction.getFactionShortName(targetFaction));
 				str = StringHelper.substituteToken(str, "$faction2",
 						NexUtilsFaction.getFactionShortName(thirdFaction));
-				String maxStr = NexUtilsReputation.getRelationStr(max);
+				String maxStr = NexUtilsReputation.getRelationStr(min);
 				str = StringHelper.substituteToken(str, "$relationship", maxStr);
-				text.addPara(str, NexUtilsReputation.getRelColor(max), maxStr);
+				text.addPara(str, NexUtilsReputation.getRelColor(min), maxStr);
 			}
 		}
 		// print current relationship
@@ -332,7 +332,7 @@ public class LowerRelations extends CovertActionIntel {
 		str = StringHelper.substituteToken(str, "$faction", thirdFaction != null ?
 				thirdFaction.getDisplayName() : StringHelper.getString("none"));
 		dialog.getOptions().addOption(str, AgentOrdersDialog.Menu.FACTION);
-		if (dialog.getFactions().isEmpty()) {
+		if (dialog.getCachedFactions().isEmpty()) {
 			dialog.getOptions().setEnabled(AgentOrdersDialog.Menu.FACTION, false);
 		}
 	}

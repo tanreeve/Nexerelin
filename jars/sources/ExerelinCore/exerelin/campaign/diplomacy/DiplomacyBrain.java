@@ -7,8 +7,10 @@ import com.fs.starfarer.api.campaign.comm.IntelInfoPlugin;
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
 import com.fs.starfarer.api.combat.MutableStat;
 import com.fs.starfarer.api.impl.campaign.ids.Factions;
+import com.fs.starfarer.api.impl.campaign.intel.BaseIntelPlugin;
 import com.fs.starfarer.api.impl.campaign.intel.inspection.HegemonyInspectionIntel;
 import com.fs.starfarer.api.impl.campaign.intel.inspection.HegemonyInspectionIntel.AntiInspectionOrders;
+import com.fs.starfarer.api.impl.campaign.intel.raid.RaidIntel;
 import com.fs.starfarer.api.impl.campaign.rulecmd.Nex_IsFactionRuler;
 import com.fs.starfarer.api.util.IntervalUtil;
 import com.fs.starfarer.api.util.Misc;
@@ -26,6 +28,7 @@ import exerelin.campaign.econ.EconomyInfoHelper;
 import exerelin.campaign.intel.diplomacy.CeasefirePromptIntel;
 import exerelin.campaign.intel.diplomacy.DiplomacyIntel;
 import exerelin.campaign.intel.fleets.OffensiveFleetIntel;
+import exerelin.campaign.intel.groundbattle.GroundBattleIntel;
 import exerelin.plugins.ExerelinModPlugin;
 import exerelin.utilities.NexConfig;
 import exerelin.utilities.NexFactionConfig;
@@ -616,34 +619,42 @@ public class DiplomacyBrain {
 		if (ourWeariness < NexConfig.minWarWearinessForPeace)
 			return null;
 		
-		List<String> enemiesLocal = new ArrayList<>(this.enemies);		
-		Collections.sort(enemiesLocal, new Comparator<String>() {
-			@Override
-			public int compare(String factionId1, String factionId2)
-			{
-				float weariness1 = DiplomacyManager.getWarWeariness(factionId1);
-				float weariness2 = DiplomacyManager.getWarWeariness(factionId2);
-				
-				return Float.compare(weariness1, weariness2);
-			}
-		});
+		List<String> enemiesLocal = new ArrayList<>();
+		if (targetFactionId == null) {
+			enemiesLocal.addAll(this.enemies);
+			Collections.sort(enemiesLocal, new Comparator<String>() {
+				@Override
+				public int compare(String factionId1, String factionId2)
+				{
+					float weariness1 = DiplomacyManager.getWarWeariness(factionId1);
+					float weariness2 = DiplomacyManager.getWarWeariness(factionId2);
+
+					return Float.compare(weariness1, weariness2);
+				}
+			});
+		} else {
+			enemiesLocal.add(targetFactionId);
+		}
 		
 		// list everyone we're currently trying to invade/raid/etc., don't bother making peace with them
-		Set<String> factionsAttackingOrAttacked = getOngoingOffensiveFactions();
+		Set<BaseIntelPlugin> offensives = getOffensivesToCheckWhenCeasefiring();
 		
 		int tries = 3;
-		for (String enemyId : enemiesLocal)
+		FACTION: for (String enemyId : enemiesLocal)
 		{
-			if (targetFactionId != null && !targetFactionId.equals(enemyId)) continue;
-
-			if (factionsAttackingOrAttacked.contains(enemyId))
-				continue;
 			if (recentWars.containsKey(enemyId)) continue;
 			if (!NexFactionConfig.canCeasefire(factionId, enemyId))
 				continue;
 			// don't diplomacy with a commissioned player
 			if (enemyId.equals(Factions.PLAYER) && Misc.getCommissionFaction() != null)
 				continue;
+
+			for (BaseIntelPlugin off : offensives) {
+				if (this.shouldOffensiveBlockCeasefire(off, enemyId)) {
+					log.info("  Blocking peace with " + enemyId + " due to ongoing offensive");
+					continue FACTION;
+				}
+			}
 
 			IntelInfoPlugin intel = tryMakePeace(enemyId, ourWeariness);
 			if (intel != null) {
@@ -656,57 +667,95 @@ public class DiplomacyBrain {
 		
 		return null;
 	}
-	
-	/**
-	 * Gets a set of faction IDs that we shouldn't make peace with until ongoing invasions etc. are resolved.
-	 * @return
-	 */
-	public Set<String> getOngoingOffensiveFactions() {
-		Set<String> factionsInvadingOrInvaded = new HashSet<>();
-				
+
+	public Set<BaseIntelPlugin> getOffensivesToCheckWhenCeasefiring() {
+		Set<BaseIntelPlugin> raids = new LinkedHashSet<>();
 		for (IntelInfoPlugin intel : Global.getSector().getIntelManager().getIntel(OffensiveFleetIntel.class)) {
 			OffensiveFleetIntel ofi = (OffensiveFleetIntel)intel;
-			if (ofi.isEnding() || ofi.isEnded()) continue;
-			if (!ofi.isAbortIfNonHostile()) continue;
-			// we or an ally are invading someone, mark the target
-			if (AllianceManager.areFactionsAllied(ofi.getFaction().getId(), factionId))
-			{
-				//log.info(String.format("  %s don't ceasefire with %s, we're invading them", factionId, inv.getTarget().getFactionId()));
-				factionsInvadingOrInvaded.add(ofi.getTarget().getFactionId());
-			}
-			
-			// someone else invading us (and that someone isn't player), mark the invader
-			if (!ofi.getFaction().isPlayerFaction() && AllianceManager.areFactionsAllied(ofi.getTarget().getFaction().getId(), factionId))
-			{
-				//log.info(String.format("  %s don't ceasefire with %s, they're invading us", factionId, inv.getFaction().getId()));
-				factionsInvadingOrInvaded.add(ofi.getFaction().getId());
-			}
+			if (!shouldCheckOffensiveForBlockCeasefire(ofi)) continue;
+			raids.add(ofi);
 		}
-		
-		// same deal for Hegemony inspections
+
 		for (IntelInfoPlugin intel : Global.getSector().getIntelManager().getIntel(HegemonyInspectionIntel.class)) {
 			HegemonyInspectionIntel hii = (HegemonyInspectionIntel)intel;
-			if (hii.isEnding() || hii.isEnded()) continue;
-			if (hii.getOrders() != AntiInspectionOrders.RESIST) continue;
-			if (AllianceManager.areFactionsAllied(factionId, Factions.HEGEMONY))
-				factionsInvadingOrInvaded.add(Factions.PLAYER);
-			if (AllianceManager.areFactionsAllied(factionId, PlayerFactionStore.getPlayerFactionId()))
-				factionsInvadingOrInvaded.add(Factions.HEGEMONY);
+			if (!shouldCheckOffensiveForBlockCeasefire(hii)) continue;
+			raids.add(hii);
 		}
-		
-		// also don't ceasefire with any of the involved faction's allies	
-		Set<String> blockedFactions = new HashSet<>();
-		for (String factionId : factionsInvadingOrInvaded) {
-			Alliance alliance = AllianceManager.getFactionAlliance(factionId);
-			if (alliance == null) {
-				blockedFactions.add(factionId);
-			} else {
-				blockedFactions.addAll(alliance.getMembersCopy());
-			}
+
+		for (IntelInfoPlugin intel : Global.getSector().getIntelManager().getIntel(GroundBattleIntel.class)) {
+			GroundBattleIntel gbi = (GroundBattleIntel)intel;
+			if (!shouldCheckOffensiveForBlockCeasefire(gbi)) continue;
+			raids.add(gbi);
 		}
-		
-		return blockedFactions;
+
+		return raids;
 	}
+
+	protected boolean shouldCheckOffensiveForBlockCeasefire(BaseIntelPlugin intel) {
+		if (intel.isEnding() || intel.isEnded()) return false;
+		if (intel instanceof RaidIntel) {
+			//RaidIntel raid = (RaidIntel) intel;
+			//if (raid.getCurrentStage() == 0) return false;
+		}
+
+		if (intel instanceof OffensiveFleetIntel) {
+			OffensiveFleetIntel ofi = (OffensiveFleetIntel)intel;
+			if (ofi.getOutcome() != null) return false;
+			if (!ofi.isAbortIfNonHostile()) return false;
+		}
+		if (intel instanceof HegemonyInspectionIntel) {
+			HegemonyInspectionIntel hii = (HegemonyInspectionIntel)intel;
+			if (hii.getOrders() != AntiInspectionOrders.RESIST) return false;
+		}
+		if (intel instanceof GroundBattleIntel) {
+			GroundBattleIntel gbi = (GroundBattleIntel)intel;
+			if (gbi.getOutcome() != null) return false;
+		}
+
+		return true;
+	}
+
+	protected boolean shouldOffensiveBlockCeasefire(BaseIntelPlugin intel, String factionIdForPotentialPeace) {
+		String target = null;
+		String source = null;
+		if (intel instanceof RaidIntel) {
+			RaidIntel raid = (RaidIntel) intel;
+			source = raid.getFaction().getId();
+		}
+		else if (intel instanceof GroundBattleIntel) {
+			GroundBattleIntel gbi = (GroundBattleIntel)intel;
+			source = gbi.getSide(true).getFaction().getId();
+			target = gbi.getSide(false).getFaction().getId();
+		}
+
+		String cfid = Misc.getCommissionFactionId();
+
+		//log.info("  Checking offensive intel " + intel.getSmallDescriptionTitle());
+
+		if (intel instanceof OffensiveFleetIntel) {
+			OffensiveFleetIntel ofi = (OffensiveFleetIntel)intel;
+			target = ofi.getTarget() != null ? ofi.getTarget().getFactionId() : null;
+		}
+		if (intel instanceof HegemonyInspectionIntel) {
+			target = Factions.PLAYER;
+		}
+
+		if (Factions.PLAYER.equals(source) && cfid != null)
+			source = cfid;
+		if (Factions.PLAYER.equals(target) && cfid != null)
+			target = cfid;
+
+		// we or our ally are attacking them or their ally
+		if (AllianceManager.areFactionsAllied(source, this.factionId) && AllianceManager.areFactionsAllied(target, factionIdForPotentialPeace))
+			return true;
+		// they or their ally are attacking us or our ally
+		if (AllianceManager.areFactionsAllied(target, this.factionId) && AllianceManager.areFactionsAllied(source, factionIdForPotentialPeace))
+			return true;
+
+		return false;
+	}
+
+
 	
 	public RepLevel getMaxRepForOpportunisticWar() {
 		
@@ -869,6 +918,8 @@ public class DiplomacyBrain {
 	
 	public void considerOptions()
 	{
+		if (Global.getSector().isInNewGameAdvance()) return;
+
 		if (!NexConfig.enableDiplomacy) return;
 		if (StrategicAI.getAI(factionId) != null) return;
 

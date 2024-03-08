@@ -217,7 +217,12 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		*/
 
 		for (String pluginId : GBDataManager.getPlugins()) {
+			//log.info("Preparing to add ground battle plugin " + pluginId);
 			GroundBattlePlugin plugin = (GroundBattlePlugin)NexUtils.instantiateClassByName(pluginId);
+			if (plugin == null) {
+				log.error("Failed to instantiate ground battle plugin " + pluginId);
+				continue;
+			}
 			addOtherPlugin(plugin);
 		}
 
@@ -315,6 +320,7 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 
 		for (GroundBattlePlugin plugin : getPlugins()) {
 			plugin.onBattleStart();
+			if (playerInitiated) plugin.onPlayerJoinBattle();
 		}
 		
 		addMilitaryResponse();
@@ -325,6 +331,13 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		for (GroundBattleCampaignListener x : Global.getSector().getListenerManager().getListeners(GroundBattleCampaignListener.class)) 
 		{
 			x.reportBattleStarted(this);
+			if (playerInitiated) {
+				try {
+					x.reportPlayerJoinedBattle(this);
+				} catch (Error er) {
+					log.warn("Failed to report player joined battle", er);
+				}
+			}
 		}
 		reapply();
 	}
@@ -366,6 +379,9 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 				continue;
 			}
 			list.add(ifb.getPlugin());
+		}
+		for (GroundUnit unit : getAllUnits()) {
+			list.add(unit.getPlugin());
 		}
 		
 		return list;
@@ -487,6 +503,19 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		}
 		
 		autoGeneratePlayerUnits();
+
+		for (GroundBattlePlugin plugin : getPlugins()) {
+			plugin.onPlayerJoinBattle();
+		}
+
+		for (GroundBattleCampaignListener x : Global.getSector().getListenerManager().getListeners(GroundBattleCampaignListener.class))
+		{
+			try {
+				x.reportPlayerJoinedBattle(this);
+			} catch (Error er) {
+				log.warn("Failed to report player joined battle", er);
+			}
+		}
 	}
 	
 	
@@ -679,25 +708,37 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		if (reasons.isEmpty()) data.remove(tag);
 	}
 
+	public GroundUnit createUnit(String unitDefId, FactionAPI faction, boolean isAttacker, int size, CampaignFleetAPI fleet, int index) {
+		GroundUnit unit = new GroundUnit(this, unitDefId, size, index);
+		unit.setFaction(faction);
+		unit.setAttacker(isAttacker);
+		unit.setFleet(fleet);
+		for (GroundBattlePlugin plugin : this.getPlugins()) {
+			plugin.reportUnitCreated(unit);
+		}
+		return unit;
+	}
+
 	public GroundUnit createPlayerUnit(String unitDefId) {
 		return createPlayerUnit(unitDefId, null);
 	}
 	
-	public GroundUnit createPlayerUnit(String unitDefId, Integer size) {
+	public GroundUnit createPlayerUnit(String unitDefId, Integer wantedSize) {
 		int index = 0;
 		if (!playerData.getUnits().isEmpty()) {
 			index = playerData.getUnits().get(playerData.getUnits().size() - 1).index + 1;
 		}
-		GroundUnit unit = new GroundUnit(this, unitDefId, 0, index);
-		unit.faction = PlayerFactionStore.getPlayerFaction();
-		unit.isPlayer = true;
-		unit.isAttacker = this.playerIsAttacker;
-		unit.fleet = Global.getSector().getPlayerFleet();
+		boolean autosize = wantedSize == null;
+		if (autosize) wantedSize = 0;
 
-		if (size == null) {
-			size = UnitOrderDialogPlugin.getMaxCountForResize(unit, 0, unitSize.getAverageSizeForType(unitDefId));
+		GroundUnit unit = this.createUnit(unitDefId, PlayerFactionStore.getPlayerFaction(), Boolean.TRUE.equals(this.playerIsAttacker),
+				0, Global.getSector().getPlayerFleet(), index);
+		unit.setPlayer(true);
+
+		if (autosize) {
+			wantedSize = UnitOrderDialogPlugin.getMaxCountForResize(unit, 0, unitSize.getAverageSizeForType(unitDefId));
 		}
-		unit.setSize(size, true);
+		unit.setSize(wantedSize, true);
 		
 		unit.setStartingMorale();
 		
@@ -705,8 +746,6 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		getSide(playerIsAttacker).units.add(unit);
 		return unit;
 	}
-	
-	// TODO: create non-player, non-garrison unit
 	
 	/**
 	 * Creates units for player based on available marines and heavy armaments.<br/>
@@ -729,6 +768,11 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		
 		autoGenerateUnits(marines, usableHeavyArms, null, null, true);
 	}
+
+	public void autoGenerateUnits(int marines, int heavyArms, FactionAPI faction, Boolean isAttacker, boolean player) {
+		CampaignFleetAPI fleet = player ? Global.getSector().getPlayerFleet() : null;
+		autoGenerateUnits(marines, heavyArms, faction, isAttacker, player, fleet);
+	}
 	
 	/**
 	 * Creates units for the specified side from a given number of marines and heavy armaments.<br/>
@@ -740,8 +784,9 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 	 * @param faction Does not need to be set if {@code player} is true.
 	 * @param isAttacker Does not need to be set if {@code player} is true.
 	 * @param player
+	 * @param fleet
 	 */
-	public void autoGenerateUnits(int marines, int heavyArms, FactionAPI faction, Boolean isAttacker, boolean player) {
+	public void autoGenerateUnits(int marines, int heavyArms, FactionAPI faction, Boolean isAttacker, boolean player, CampaignFleetAPI fleet) {
 		float perUnitSize = unitSize.getMaxSizeForType(GroundUnitDef.HEAVY);
 		int numCreatable = 0;
 		
@@ -759,7 +804,7 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		for (int i=0; i<numCreatable; i++) {
 			GroundUnit unit;
 			if (player) unit = createPlayerUnit(GroundUnitDef.HEAVY, numPerUnit);
-			else unit = getSide(isAttacker).createUnit(GroundUnitDef.HEAVY, faction, numPerUnit);
+			else unit = getSide(isAttacker).createUnit(GroundUnitDef.HEAVY, faction, numPerUnit, fleet);
 		}
 		
 		// add marines
@@ -782,7 +827,7 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		for (int i=0; i<numCreatable; i++) {
 			GroundUnit unit;
 			if (player) unit = createPlayerUnit(GroundUnitDef.MARINE, numPerUnit);
-			else unit = getSide(isAttacker).createUnit(GroundUnitDef.MARINE, faction, numPerUnit);
+			else unit = getSide(isAttacker).createUnit(GroundUnitDef.MARINE, faction, numPerUnit, fleet);
 		}
 	}
 	
@@ -886,7 +931,6 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		xp = Math.min(xp, total/2);
 		
 		// apply the XP
-		// TODO: log this		
 		float fleetXP = (inFleet/total) * xp;
 		if (fleetXP > 0) {
 			log.info("Adding " + fleetXP + " XP for " + inFleet + " marines in fleet");
@@ -1723,9 +1767,12 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		Set<String> commodities = new LinkedHashSet<>();
 		commodities.add(Commodities.SUPPLIES);
 		commodities.add(Commodities.FUEL);
-		commodities.addAll(CrewReplacerUtils.getAllCommodityIdsForJob(GBConstants.CREW_REPLACER_JOB_MARINES, Commodities.MARINES));
-		commodities.addAll(CrewReplacerUtils.getAllCommodityIdsForJob(GBConstants.CREW_REPLACER_JOB_HEAVYARMS, Commodities.HAND_WEAPONS));
-		commodities.addAll(CrewReplacerUtils.getAllCommodityIdsForJob(GBConstants.CREW_REPLACER_JOB_TANKCREW, Commodities.MARINES));
+		for (GroundUnitDef def : GroundUnitDef.UNIT_DEFS) {
+			if (!def.playerCanCreate) continue;
+			if (!def.shouldShow()) continue;
+			if (def.personnel != null) commodities.addAll(CrewReplacerUtils.getAllCommodityIdsForJob(def.personnel.crewReplacerJobId, def.personnel.commodityId));
+			if (def.equipment != null) commodities.addAll(CrewReplacerUtils.getAllCommodityIdsForJob(def.equipment.crewReplacerJobId, def.equipment.commodityId));
+		}
 
 		int numRows = (int)Math.ceil(commodities.size()/(float)numPerRow);
 
