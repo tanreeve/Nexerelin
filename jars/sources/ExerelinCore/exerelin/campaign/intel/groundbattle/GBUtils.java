@@ -15,7 +15,6 @@ import com.fs.starfarer.api.util.WeightedRandomPicker;
 import exerelin.campaign.AllianceManager;
 import exerelin.campaign.econ.FleetPoolManager;
 import exerelin.campaign.fleets.InvasionFleetManager;
-import exerelin.campaign.intel.groundbattle.GroundUnit.ForceType;
 import exerelin.campaign.intel.invasion.CounterInvasionIntel;
 import exerelin.utilities.NexConfig;
 import org.apache.log4j.Logger;
@@ -90,9 +89,9 @@ public class GBUtils {
 		float countForSize = getTroopCountForMarketSize(intel.getMarket());
 		countForSize *= 0.5f + (intel.market.getStabilityValue() / 10f) * 0.75f;
 		
-		float health = 1;
+		float mult = NexConfig.groundBattleGarrisonSizeMult;
 		if (useHealth) {
-			health = 1 - GBUtils.getGarrisonDamageMemory(intel.getMarket());
+			mult *= 1 - GBUtils.getGarrisonDamageMemory(intel.getMarket());
 		}
 		
 		marines *= 0.5f + 0.5f * getDeficitFactor(intel.market, Commodities.MARINES);
@@ -103,9 +102,9 @@ public class GBUtils {
 		marines *= 1 + 0.25f * suppliesFactor;
 		heavies *= 1 + 0.25f * suppliesFactor;
 		
-		militia = Math.round(militia * countForSize * 2.5f * health);
-		marines = Math.round(marines * countForSize * health);
-		heavies = Math.round(heavies * countForSize / GroundUnit.HEAVY_COUNT_DIVISOR * health);
+		militia = Math.round(militia * countForSize * 2.5f * mult);
+		marines = Math.round(marines * countForSize * mult);
+		heavies = Math.round(heavies * countForSize / GroundUnit.HEAVY_COUNT_DIVISOR * mult);
 		
 		return new float[] {militia, marines, heavies};
 	}
@@ -123,7 +122,7 @@ public class GBUtils {
 		return lowest;
 	}
 	
-	public static float estimateTotalDefenderStrength(GroundBattleIntel intel, boolean useHealth) 
+	public static float estimateTotalDefenderStrength(GroundBattleIntel intel, boolean useHealth)
 	{
 		float str = 0;
 		float[] strByType = estimateDefenderStrength(intel, useHealth);
@@ -144,19 +143,22 @@ public class GBUtils {
 		CargoAPI cargo = Global.getSector().getPlayerFleet().getCargo();
 		int marines = cargo.getMarines();
 		int heavyArms = (int)cargo.getCommodityQuantity(Commodities.HAND_WEAPONS);
+		float marineStr = GroundUnitDef.getUnitDef(GroundUnitDef.MARINE).strength;
+		float heavyStr = GroundUnitDef.getUnitDef(GroundUnitDef.HEAVY).strength;
+		int crewMult = GroundUnitDef.getUnitDef(GroundUnitDef.HEAVY).personnel.mult;
 		
 		// if cramped, do marines only
 		// else, heavy arms then marines
 		if (false && intel.isCramped()) {
-			return new float[] {marines * ForceType.MARINE.strength};
+			return new float[] {marines * marineStr};
 		}
 		else {
-			heavyArms = Math.min(heavyArms, marines/GroundUnit.CREW_PER_MECH);
+			heavyArms = Math.min(heavyArms, marines/crewMult);
 
-			int remainingMarines = marines - heavyArms * GroundUnit.CREW_PER_MECH;
+			int remainingMarines = marines - heavyArms * crewMult;
 
-			return new float[] {remainingMarines * ForceType.MARINE.strength,
-					heavyArms * ForceType.HEAVY.strength};
+			return new float[] {remainingMarines * marineStr,
+					heavyArms * heavyStr};
 		}
 	}
 	

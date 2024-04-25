@@ -28,11 +28,8 @@ import exerelin.campaign.fleets.InvasionFleetManager;
 import exerelin.campaign.intel.defensefleet.DefenseFleetIntel;
 import exerelin.campaign.intel.diplomacy.DiplomacyIntel;
 import exerelin.campaign.intel.fleets.*;
-import exerelin.campaign.intel.groundbattle.GBUtils;
-import exerelin.campaign.intel.groundbattle.GroundBattleCampaignListener;
-import exerelin.campaign.intel.groundbattle.GroundBattleIntel;
+import exerelin.campaign.intel.groundbattle.*;
 import exerelin.campaign.intel.groundbattle.GroundBattleIntel.BattleOutcome;
-import exerelin.campaign.intel.groundbattle.GroundUnit;
 import exerelin.plugins.ExerelinModPlugin;
 import exerelin.utilities.NexConfig;
 import exerelin.utilities.NexUtilsMarket;
@@ -202,16 +199,20 @@ public class InvasionIntel extends OffensiveFleetIntel implements RaidDelegate,
 		if (NexConfig.legacyInvasions) {
 			float defenderStrength = InvasionRound.getDefenderStrength(target, 0.75f);
 			marinesTotal = (int)(defenderStrength * InvasionFleetManager.DEFENDER_STRENGTH_MARINE_MULT);
+			marinesTotal *= NexConfig.groundBattleInvasionTroopSizeMult;
 		}
-		// base on Nex new invasion mechanic garrison
 
+		// base on Nex new invasion mechanic garrison
 		else {
 			float garrison = GBUtils.estimateTotalDefenderStrength(target, faction, false);
+			garrison /= NexConfig.groundBattleGarrisonSizeMult;
 			marinesTotal = (int)Math.ceil(garrison * MARINE_GARRISION_MULT);
 			
 			if (!expectBombable()) {
 				marinesTotal *= MARINE_NON_BOMBABLE_MULT;
 			}
+
+			marinesTotal *= NexConfig.groundBattleInvasionTroopSizeMult;
 		}
 		if (marinesTotal < 100) marinesTotal = 100;
 		else if (marinesTotal > MAX_MARINES_TOTAL) {
@@ -344,7 +345,7 @@ public class InvasionIntel extends OffensiveFleetIntel implements RaidDelegate,
 			heavyArms = marines/5;
 			if (target.getPlanetEntity() == null) heavyArms /= 2;
 		}
-		heavyArms = Math.min(heavyArms, marines/GroundUnit.CREW_PER_MECH);
+		heavyArms = Math.min(heavyArms, marines/GroundUnitDef.getUnitDef(GroundUnitDef.HEAVY).personnel.mult);
 		
 		// first boots to hit the ground
 		boolean firstIn = groundBattle.getSide(side).getUnits().isEmpty();

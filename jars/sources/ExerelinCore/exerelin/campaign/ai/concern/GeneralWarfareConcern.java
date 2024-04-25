@@ -11,6 +11,7 @@ import exerelin.campaign.ai.SAIConstants;
 import exerelin.campaign.ai.StrategicAI;
 import exerelin.campaign.ai.action.StrategicAction;
 import exerelin.campaign.ai.action.StrategicActionDelegate;
+import exerelin.campaign.ai.action.covert.CovertAction;
 import exerelin.campaign.diplomacy.DiplomacyBrain;
 import exerelin.utilities.NexConfig;
 import lombok.Getter;
@@ -103,6 +104,19 @@ public class GeneralWarfareConcern extends BaseStrategicConcern {
     }
 
     @Override
+    public boolean canTakeAction(StrategicAction action) {
+        /*
+        RepLevel max = action.getMaxRelToTarget(action.getFaction());
+        if (max.isAtBest(RepLevel.INHOSPITABLE)) {
+            Global.getLogger(this.getClass()).warn(String.format("General warfare concern for %s: blocking action %s due to max rel %s",
+                    ai.getFaction().getDisplayName(), action.getName(), max.getDisplayName()));
+            return false;
+        }
+        */
+        return true;
+    }
+
+    @Override
     public boolean isValid() {
         return !hostileFactions.isEmpty();
     }
@@ -111,7 +125,11 @@ public class GeneralWarfareConcern extends BaseStrategicConcern {
     public void notifyActionUpdate(StrategicAction action, StrategicActionDelegate.ActionStatus newStatus) {
         super.notifyActionUpdate(action, newStatus);
         if (newStatus == StrategicActionDelegate.ActionStatus.STARTING) {
-            Global.getLogger(this.getClass()).info("Lowering priority by " + action.getDef().cooldown + " based on action cooldown");
+            if (action instanceof CovertAction) {
+                Global.getLogger(this.getClass()).info(ai.getFaction().getDisplayName() + " picking covert action for general warfare concern");
+            }
+
+            //Global.getLogger(this.getClass()).info("Lowering priority by " + action.getDef().cooldown + " based on action cooldown");
             priorityFromTime -= action.getDef().cooldown * 2;
             if (priorityFromTime < 0) priorityFromTime = 0;
             priority.modifyFlat("priorityFromTime", priorityFromTime, StrategicAI.getString("statPriorityOverTime", true));

@@ -848,6 +848,7 @@ public class Nex_MarketCMD extends MarketCMD {
 		
 		float attackerStr = (int) Math.round(attacker.computeEffective(attackerBase.computeEffective(0f)));
 		float defenderStr = (int) Math.round(defender.computeEffective(0));
+		defenderStr *= NexConfig.groundBattleGarrisonSizeMult;
 		
 		tempInvasion.attackerStr = attackerStr;
 		tempInvasion.defenderStr = defenderStr;
@@ -976,7 +977,7 @@ public class Nex_MarketCMD extends MarketCMD {
 		
 		dialog.getVisualPanel().showImagePortion("illustrations", "raid_prepare", 640, 400, 0, 0, 480, 300);
 
-		float marines = CrewReplacerUtils.getMarines(playerFleet, CREWREPLACER_JOB_RAID);
+		float marines = CrewReplacerUtils.getMarines(playerFleet, GBConstants.CREW_REPLACER_JOB_MARINES);
 		
 		String str;
 		TooltipMakerAPI info;
@@ -2100,6 +2101,13 @@ public class Nex_MarketCMD extends MarketCMD {
 			int atrocities = (int) Global.getSector().getCharacterData().getMemoryWithoutUpdate().getFloat(MemFlags.PLAYER_ATROCITIES);
 			atrocities++;
 			Global.getSector().getCharacterData().getMemoryWithoutUpdate().set(MemFlags.PLAYER_ATROCITIES, atrocities);
+
+			if (market != null && market.getFaction() != null) {
+				MemoryAPI mem = market.getFaction().getMemoryWithoutUpdate();
+				int count = mem.getInt(MemFlags.FACTION_SATURATION_BOMBARED_BY_PLAYER);
+				count++;
+				mem.set(MemFlags.FACTION_SATURATION_BOMBARED_BY_PLAYER, count);
+			}
 		}		
 		
 		int stabilityPenalty = getTacticalBombardmentStabilityPenalty();

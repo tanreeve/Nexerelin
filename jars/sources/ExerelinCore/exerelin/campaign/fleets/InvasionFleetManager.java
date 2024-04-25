@@ -821,7 +821,7 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 		float organizeTime = getOrganizeTime(fp);
 		fp *= InvasionFleetManager.getInvasionSizeMult(factionId);
 		fp *= sizeMult;
-		if (type == EventType.RAID || type == EventType.BLOCKADE)
+		if (type == EventType.RAID)	// || type == EventType.BLOCKADE)
 			fp *= RAID_SIZE_MULT;
 		else if (type == EventType.RESPAWN)
 			fp *= RESPAWN_SIZE_MULT;
@@ -1073,9 +1073,9 @@ public class InvasionFleetManager extends BaseCampaignEventListener implements E
 			faction.getMemoryWithoutUpdate().set(MEMORY_KEY_POINTS_LAST_TICK, increment, 3);
 			
 			float pointsRequired = NexConfig.pointsRequiredForInvasionFleet;
-			boolean canSpawn = currCounter > pointsRequired;
+			boolean canSpawn = currCounter >= pointsRequired;
 			if (FleetPoolManager.USE_POOL) {
-				canSpawn = currCounter > pointsRequired * 2f;	// higher requirement so it doesn't drain the fleet pool completely following an invasion
+				//canSpawn = currCounter > pointsRequired * 2f;	// higher requirement so it doesn't drain the fleet pool completely following an invasion
 				float fleetPool = FleetPoolManager.getManager().getCurrentPool(factionId);
 				canSpawn = canSpawn && fleetPool > BASE_INVASION_SIZE;
 			}

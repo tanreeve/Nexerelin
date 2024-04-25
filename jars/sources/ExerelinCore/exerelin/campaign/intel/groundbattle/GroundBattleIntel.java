@@ -709,14 +709,28 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 	}
 
 	public GroundUnit createUnit(String unitDefId, FactionAPI faction, boolean isAttacker, int size, CampaignFleetAPI fleet, int index) {
+		return createUnit(unitDefId, faction, isAttacker, size, fleet, index, true);
+	}
+
+	public GroundUnit createUnit(String unitDefId, FactionAPI faction, boolean isAttacker, int size, CampaignFleetAPI fleet, int index, boolean reportUnitCreated)
+	{
 		GroundUnit unit = new GroundUnit(this, unitDefId, size, index);
 		unit.setFaction(faction);
 		unit.setAttacker(isAttacker);
 		unit.setFleet(fleet);
+		unit.setStartingMorale();
+		if (reportUnitCreated) reportUnitCreated(unit);
+		return unit;
+	}
+
+	/**
+	 * Notifies all ground battle plugins of unit creation.
+	 * @param unit
+	 */
+	public void reportUnitCreated(GroundUnit unit) {
 		for (GroundBattlePlugin plugin : this.getPlugins()) {
 			plugin.reportUnitCreated(unit);
 		}
-		return unit;
 	}
 
 	public GroundUnit createPlayerUnit(String unitDefId) {
@@ -731,16 +745,18 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		boolean autosize = wantedSize == null;
 		if (autosize) wantedSize = 0;
 
+		// unit is created with zero size, so that commodities will be drawn from cargo to fill it
 		GroundUnit unit = this.createUnit(unitDefId, PlayerFactionStore.getPlayerFaction(), Boolean.TRUE.equals(this.playerIsAttacker),
-				0, Global.getSector().getPlayerFleet(), index);
+				0, Global.getSector().getPlayerFleet(), index, false);
 		unit.setPlayer(true);
 
 		if (autosize) {
 			wantedSize = UnitOrderDialogPlugin.getMaxCountForResize(unit, 0, unitSize.getAverageSizeForType(unitDefId));
 		}
 		unit.setSize(wantedSize, true);
-		
 		unit.setStartingMorale();
+
+		reportUnitCreated(unit);
 		
 		playerData.getUnits().add(unit);
 		getSide(playerIsAttacker).units.add(unit);
@@ -760,7 +776,7 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		int heavyArms = (int)CrewReplacerUtils.getHeavyArms(player, GBConstants.CREW_REPLACER_JOB_HEAVYARMS);
 		
 		// add heavy units
-		int usableHeavyArms = Math.min(heavyArms, marines/GroundUnit.CREW_PER_MECH);
+		int usableHeavyArms = Math.min(heavyArms, marines/GroundUnitDef.getUnitDef(GroundUnitDef.HEAVY).personnel.mult);
 		if (isCramped()) {
 			//log.info("Cramped conditions, halving heavy unit count");
 			usableHeavyArms /= 2;
@@ -808,7 +824,7 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		}
 		
 		// add marines
-		marines -= heavyArms * GroundUnit.CREW_PER_MECH;
+		marines -= heavyArms * GroundUnitDef.getUnitDef(GroundUnitDef.HEAVY).personnel.mult;
 		int remainingSlots = MAX_PLAYER_UNITS - playerData.getUnits().size();
 		perUnitSize = unitSize.getMaxSizeForType(GroundUnitDef.MARINE);
 		
@@ -862,7 +878,7 @@ public class GroundBattleIntel extends BaseIntelPlugin implements
 		for (ForceType type : map.keySet()) {
 			int thisNum = map.get(type);
 			if (type == ForceType.HEAVY)
-				num += thisNum * GroundUnit.CREW_PER_MECH;
+				num += thisNum * GroundUnitDef.getUnitDef(GroundUnitDef.HEAVY).personnel.mult;
 			else
 				num += thisNum;
 		}

@@ -468,7 +468,7 @@ public class AllianceManager  extends BaseCampaignEventListener implements Every
                 Alignment bestAlignment = getBestAlignment(factionId, otherFactionId);
                 if (bestAlignment != null)
                 {
-                    if (Nex_IsFactionRuler.isRuler(otherFactionId)) {
+                    if (NexConfig.npcAllianceOffers && Nex_IsFactionRuler.isRuler(otherFactionId)) {
                         if (Global.getSector().getFaction(otherFactionId).getMemoryWithoutUpdate().getBoolean(AllianceOfferIntel.MEM_KEY_COOLDOWN))
                             continue;
 
@@ -490,6 +490,7 @@ public class AllianceManager  extends BaseCampaignEventListener implements Every
             if (alliancesByFactionId.containsKey(factionId)) continue;
             if (INVALID_FACTIONS.contains(factionId)) continue;
             if (Nex_IsFactionRuler.isRuler(factionId)) continue;
+            if (NexUtilsFaction.isPirateFaction(factionId)) continue;
             FactionAPI faction = sector.getFaction(factionId);
             
             WeightedRandomPicker<Alliance> picker = new WeightedRandomPicker<>();
